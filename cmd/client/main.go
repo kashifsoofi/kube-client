@@ -5,6 +5,6 @@ import (
 )
 
 func main() {
-	app := ui.NewApp(store)
+	app := ui.NewApp()
 	app.Run()
 }

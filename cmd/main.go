@@ -32,6 +32,11 @@ func main() {
 	}
 	flag.Parse()
 
+	// switch context
+	if err := switchContext("my-context-to-switch", *kubeconfig); err != nil {
+		fmt.Printf("Error switching context: %s\n", err)
+	}
+
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
@@ -69,4 +74,37 @@ func main() {
 
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func switchContext(ctx, kubeconfigPath string) (err error) {
+	// loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath}
+	configOverrides := &clientcmd.ConfigOverrides{}
+
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	config, err := kubeConfig.RawConfig()
+	if err != nil {
+		return fmt.Errorf("error getting RawConfig: %w", err)
+	}
+
+	for k := range config.Contexts {
+		fmt.Printf("%s", k)
+		if k == config.CurrentContext {
+			fmt.Printf(" *")
+		}
+		fmt.Println();
+	}
+
+	if config.Contexts[ctx] == nil {
+		return fmt.Errorf("context %s doesn't exists", ctx)
+	}
+
+	config.CurrentContext = ctx
+	err = clientcmd.ModifyConfig(clientcmd.NewDefaultPathOptions(), config, true)
+	if err != nil {
+		return fmt.Errorf("error ModifyConfig: %w", err)
+	}
+
+	fmt.Printf("Switched to context \"%s\"", ctx)
+	return nil
 }

@@ -19,7 +19,7 @@ func NewMainWindow(a fyne.App) fyne.Window {
 
 	contexts, current := getContexts()
 	widgetContext := widget.NewSelect(contexts, func(name string) {
-		widgetNamespace.Options = getNamespaces()
+		widgetNamespace.Options = getNamespaces(name)
 	})
 	widgetContext.SetSelected(current)
 

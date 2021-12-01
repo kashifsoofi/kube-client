@@ -6,20 +6,24 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func GetContexts(kubeConfigPath string) ([]string, string, error) {
-	loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfigPath}
-	configOverrides := &clientcmd.ConfigOverrides{}
-
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.RawConfig()
-	if err != nil {
-		return nil, "", fmt.Errorf("error getting RawConfig: %w", err)
-	}
-
+func (c *Client) GetContexts() []string {
 	contexts := []string{}
-	for k := range config.Contexts {
+	for k := range c.RawConfig.Contexts {
 		contexts = append(contexts, k)
 	}
+	return contexts
+}
 
-	return contexts, config.CurrentContext, nil
+func (c *Client) GetCurrentContext() string {
+	return c.RawConfig.CurrentContext
+}
+
+func (c *Client) SwitchContext(ctx string) error {
+	c.RawConfig.CurrentContext = ctx
+	err := clientcmd.ModifyConfig(clientcmd.NewDefaultPathOptions(), c.RawConfig, true)
+	if err != nil {
+		return fmt.Errorf("error modify config: %w", err)
+	}
+
+	return nil
 }

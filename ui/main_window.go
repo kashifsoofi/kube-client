@@ -1,25 +1,23 @@
 package ui
 
 import (
-	"path/filepath"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/kashifsoofi/kube-client/k8s"
-	"k8s.io/client-go/util/homedir"
 )
 
 var content fyne.CanvasObject
 
-func NewMainWindow(a fyne.App) fyne.Window {
+func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 	w := a.NewWindow("Kubernetes Client")
 
 	widgetNamespace := &widget.Select{}
 
-	contexts, current := getContexts()
+	contexts, current := getContexts(client)
 	widgetContext := widget.NewSelect(contexts, func(name string) {
-		widgetNamespace.Options = getNamespaces(name)
+		widgetNamespace.Options = switchContext(client, name)
+		widgetNamespace.ClearSelected()
 	})
 	widgetContext.SetSelected(current)
 
@@ -74,21 +72,23 @@ func setContent(text string) {
 	// content.Refresh()
 }
 
-func getContexts() ([]string, string) {
-	home := homedir.HomeDir()
-	kubeConfigPath := filepath.Join(home, ".kube", "config")
-	contexts, current, err := k8s.GetContexts(kubeConfigPath)
-	if err != nil {
-		return nil, ""
-	}
+func getContexts(client *k8s.Client) ([]string, string) {
+	contexts := client.GetContexts()
+	current := client.GetCurrentContext()
 
 	return contexts, current
 }
 
-func getNamespaces(context string) []string {
-	return []string{
-		"namespace 1",
-		"namespace 2",
-		"namespace 3",
+func switchContext(client *k8s.Client, ctx string) []string {
+	client.SwitchContext(ctx)
+	return getNamespaces(client)
+}
+
+func getNamespaces(client *k8s.Client) []string {
+	namespaces, err := client.GetNamespaces()
+	if err != nil {
+		return []string{}
 	}
+
+	return namespaces
 }

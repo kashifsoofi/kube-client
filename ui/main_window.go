@@ -7,7 +7,7 @@ import (
 	"github.com/kashifsoofi/kube-client/k8s"
 )
 
-var content fyne.CanvasObject
+var content *fyne.Container
 
 func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 	w := a.NewWindow("Kubernetes Client")
@@ -21,16 +21,20 @@ func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 	})
 	widgetContext.SetSelected(current)
 
-	content = container.NewVBox(
-		widget.NewLabel("Main Window"),
-	)
+	widgetResource := widget.NewSelect(getResources(), func(name string) {
+		loadResources(name, client, widgetNamespace.Selected)
+	})
+
+	content = container.NewMax()
 
 	mainContent := container.NewVBox(
 		container.NewHBox(
-			widget.NewLabel("Namespace"),
-			widgetNamespace,
 			widget.NewLabel("Context"),
 			widgetContext,
+			widget.NewLabel("Namespace"),
+			widgetNamespace,
+			widget.NewLabel("Resource"),
+			widgetResource,
 		),
 		container.NewHBox(
 			makeNav(),
@@ -91,4 +95,52 @@ func getNamespaces(client *k8s.Client) []string {
 	}
 
 	return namespaces
+}
+
+func getResources() []string {
+	return []string{
+		"Services",
+		"Pods",
+	}
+}
+
+func loadResources(name string, client *k8s.Client, ns string) {
+	switch name {
+	case "Pods":
+		loadPods(client, ns)
+	}
+}
+
+func loadPods(client *k8s.Client, ns string) {
+	podNames, err := client.GetPods(ns)
+	if err != nil {
+		return
+	}
+
+	podCards := []fyne.CanvasObject{}
+	for _, p := range podNames {
+		podCard := widget.NewCard(
+			p,
+			"",
+			container.NewHBox(
+				widget.NewButton("Logs", func() {
+
+				}),
+				widget.NewButton("Scale", func() {
+
+				}),
+				widget.NewButton("Delete", func() {
+
+				}),
+			))
+		podCards = append(podCards, podCard)
+	}
+
+	pods := container.NewVScroll(
+		container.NewVBox(podCards...),
+	)
+	pods.SetMinSize(fyne.NewSize(640, 460))
+
+	content.Objects = []fyne.CanvasObject{pods}
+	content.Refresh()
 }

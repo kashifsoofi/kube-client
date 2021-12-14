@@ -101,6 +101,7 @@ func getResources() []string {
 	return []string{
 		"Services",
 		"Pods",
+		"Deployments",
 	}
 }
 
@@ -110,6 +111,8 @@ func loadResources(name string, client *k8s.Client, ns string) {
 		loadPods(client, ns)
 	case "Services":
 		loadServices(client, ns)
+	case "Deployments":
+		loadDeployments(client, ns)
 	}
 }
 
@@ -172,5 +175,36 @@ func loadServices(client *k8s.Client, ns string) {
 	services.SetMinSize(fyne.NewSize(640, 460))
 
 	content.Objects = []fyne.CanvasObject{services}
+	content.Refresh()
+}
+
+func loadDeployments(client *k8s.Client, ns string) {
+	deploymentNames, err := client.GetDeployments(ns)
+	if err != nil {
+		return
+	}
+
+	deploymentCards := []fyne.CanvasObject{}
+	for _, dn := range deploymentNames {
+		deploymentCard := widget.NewCard(
+			dn,
+			"",
+			container.NewHBox(
+				widget.NewButton("Port Forward", func() {
+
+				}),
+				widget.NewButton("Delete", func() {
+
+				}),
+			))
+		deploymentCards = append(deploymentCards, deploymentCard)
+	}
+
+	deployments := container.NewVScroll(
+		container.NewVBox(deploymentCards...),
+	)
+	deployments.SetMinSize(fyne.NewSize(640, 460))
+
+	content.Objects = []fyne.CanvasObject{deployments}
 	content.Refresh()
 }

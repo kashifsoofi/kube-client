@@ -108,6 +108,8 @@ func loadResources(name string, client *k8s.Client, ns string) {
 	switch name {
 	case "Pods":
 		loadPods(client, ns)
+	case "Services":
+		loadServices(client, ns)
 	}
 }
 
@@ -142,5 +144,33 @@ func loadPods(client *k8s.Client, ns string) {
 	pods.SetMinSize(fyne.NewSize(640, 460))
 
 	content.Objects = []fyne.CanvasObject{pods}
+	content.Refresh()
+}
+
+func loadServices(client *k8s.Client, ns string) {
+	serviceNames, err := client.GetServices(ns)
+	if err != nil {
+		return
+	}
+
+	serviceCards := []fyne.CanvasObject{}
+	for _, s := range serviceNames {
+		serviceCard := widget.NewCard(
+			s,
+			"",
+			container.NewHBox(
+				widget.NewButton("Delete", func() {
+
+				}),
+			))
+		serviceCards = append(serviceCards, serviceCard)
+	}
+
+	services := container.NewVScroll(
+		container.NewVBox(serviceCards...),
+	)
+	services.SetMinSize(fyne.NewSize(640, 460))
+
+	content.Objects = []fyne.CanvasObject{services}
 	content.Refresh()
 }

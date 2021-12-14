@@ -22,7 +22,7 @@ func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 	widgetContext.SetSelected(current)
 
 	widgetResource := widget.NewSelect(getResources(), func(name string) {
-		loadResources(name, client, widgetNamespace.Selected)
+		loadResources(a, name, client, widgetNamespace.Selected)
 	})
 
 	content = container.NewMax()
@@ -105,10 +105,10 @@ func getResources() []string {
 	}
 }
 
-func loadResources(name string, client *k8s.Client, ns string) {
+func loadResources(a fyne.App, name string, client *k8s.Client, ns string) {
 	switch name {
 	case "Pods":
-		loadPods(client, ns)
+		loadPods(a, client, ns)
 	case "Services":
 		loadServices(client, ns)
 	case "Deployments":
@@ -116,7 +116,7 @@ func loadResources(name string, client *k8s.Client, ns string) {
 	}
 }
 
-func loadPods(client *k8s.Client, ns string) {
+func loadPods(a fyne.App, client *k8s.Client, ns string) {
 	podNames, err := client.GetPods(ns)
 	if err != nil {
 		return
@@ -129,10 +129,8 @@ func loadPods(client *k8s.Client, ns string) {
 			"",
 			container.NewHBox(
 				widget.NewButton("Logs", func() {
-
-				}),
-				widget.NewButton("Scale", func() {
-
+					lw := NewLogWindow(a, client, p)
+					lw.Show()
 				}),
 				widget.NewButton("Delete", func() {
 
@@ -191,6 +189,9 @@ func loadDeployments(client *k8s.Client, ns string) {
 			"",
 			container.NewHBox(
 				widget.NewButton("Port Forward", func() {
+
+				}),
+				widget.NewButton("Scale", func() {
 
 				}),
 				widget.NewButton("Delete", func() {

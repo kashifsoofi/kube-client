@@ -13,10 +13,22 @@ func NewLogWindow(a fyne.App, client *k8s.Client, pod string) fyne.Window {
 	logEntry := widget.NewMultiLineEntry()
 	logEntry.Disable()
 
-	content := container.NewVScroll(
+	logContainer := container.NewVScroll(
 		logEntry,
 	)
-	content.SetMinSize(fyne.NewSize(800, 600))
+	logContainer.SetMinSize(fyne.NewSize(800, 600))
+
+	content := container.NewVBox(
+		container.NewHBox(
+			widget.NewButton("Start", func() {
+
+			}),
+			widget.NewButton("Stop", func() {
+
+			}),
+		),
+		logContainer,
+	)
 
 	w.SetContent(content)
 	w.CenterOnScreen()

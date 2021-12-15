@@ -25,9 +25,13 @@ func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 		loadResources(a, name, client, widgetNamespace.Selected)
 	})
 
-	content = container.NewMax()
+	subContent := container.NewVScroll(
+		container.NewVBox(),
+	)
+	subContent.SetMinSize(fyne.NewSize(640, 480))
+	content = container.NewCenter(subContent)
 
-	mainContent := container.NewVBox(
+	mainContent := container.NewBorder(
 		container.NewHBox(
 			widget.NewLabel("Context"),
 			widgetContext,
@@ -36,44 +40,15 @@ func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 			widget.NewLabel("Resource"),
 			widgetResource,
 		),
-		container.NewHBox(
-			makeNav(),
-			container.NewCenter(content),
-		),
+		nil,
+		nil,
+		nil,
+		content,
 	)
 
 	w.SetContent(mainContent)
 	w.CenterOnScreen()
 	return w
-}
-
-func makeNav() fyne.CanvasObject {
-	tree := &widget.Tree{
-		ChildUIDs: func(uid string) []string {
-			return []string{"Cluster", "Nodes", "Workloads", "Configuration", "Network", "Storage", "Namespaces"}
-		},
-		IsBranch: func(uid string) bool {
-			return false
-		},
-		CreateNode: func(branch bool) fyne.CanvasObject {
-			return widget.NewLabel("Collection Widgets")
-		},
-		UpdateNode: func(uid string, branch bool, obj fyne.CanvasObject) {
-			obj.(*widget.Label).SetText(uid)
-		},
-		OnSelected: func(uid string) {
-			setContent(uid)
-		},
-	}
-
-	return tree
-}
-
-func setContent(text string) {
-	content = container.NewVBox(
-		widget.NewLabel("Main Window"),
-	)
-	// content.Refresh()
 }
 
 func getContexts(client *k8s.Client) ([]string, string) {
@@ -106,27 +81,37 @@ func getResources() []string {
 }
 
 func loadResources(a fyne.App, name string, client *k8s.Client, ns string) {
+	var cards []fyne.CanvasObject
 	switch name {
 	case "Pods":
-		loadPods(a, client, ns)
+		cards = loadPods(a, client, ns)
 	case "Services":
-		loadServices(client, ns)
+		cards = loadServices(client, ns)
 	case "Deployments":
-		loadDeployments(client, ns)
+		cards = loadDeployments(client, ns)
 	}
+
+	cardsContainer := container.NewVScroll(
+		container.NewGridWrap(fyne.NewSize(450, 100), cards...),
+	)
+
+	cardsContainer.SetMinSize(fyne.NewSize(920, 600))
+
+	content.Objects = []fyne.CanvasObject{cardsContainer}
+	content.Refresh()
 }
 
-func loadPods(a fyne.App, client *k8s.Client, ns string) {
+func loadPods(a fyne.App, client *k8s.Client, ns string) []fyne.CanvasObject {
 	podNames, err := client.GetPods(ns)
 	if err != nil {
-		return
+		return []fyne.CanvasObject{}
 	}
 
 	podCards := []fyne.CanvasObject{}
 	for _, p := range podNames {
 		podCard := widget.NewCard(
-			p,
 			"",
+			p,
 			container.NewHBox(
 				widget.NewButton("Logs", func() {
 					lw := NewLogWindow(a, client, p)
@@ -139,26 +124,20 @@ func loadPods(a fyne.App, client *k8s.Client, ns string) {
 		podCards = append(podCards, podCard)
 	}
 
-	pods := container.NewVScroll(
-		container.NewVBox(podCards...),
-	)
-	pods.SetMinSize(fyne.NewSize(640, 460))
-
-	content.Objects = []fyne.CanvasObject{pods}
-	content.Refresh()
+	return podCards
 }
 
-func loadServices(client *k8s.Client, ns string) {
+func loadServices(client *k8s.Client, ns string) []fyne.CanvasObject {
 	serviceNames, err := client.GetServices(ns)
 	if err != nil {
-		return
+		return []fyne.CanvasObject{}
 	}
 
 	serviceCards := []fyne.CanvasObject{}
 	for _, s := range serviceNames {
 		serviceCard := widget.NewCard(
-			s,
 			"",
+			s,
 			container.NewHBox(
 				widget.NewButton("Delete", func() {
 
@@ -167,26 +146,20 @@ func loadServices(client *k8s.Client, ns string) {
 		serviceCards = append(serviceCards, serviceCard)
 	}
 
-	services := container.NewVScroll(
-		container.NewVBox(serviceCards...),
-	)
-	services.SetMinSize(fyne.NewSize(640, 460))
-
-	content.Objects = []fyne.CanvasObject{services}
-	content.Refresh()
+	return serviceCards
 }
 
-func loadDeployments(client *k8s.Client, ns string) {
+func loadDeployments(client *k8s.Client, ns string) []fyne.CanvasObject {
 	deploymentNames, err := client.GetDeployments(ns)
 	if err != nil {
-		return
+		return []fyne.CanvasObject{}
 	}
 
 	deploymentCards := []fyne.CanvasObject{}
 	for _, dn := range deploymentNames {
 		deploymentCard := widget.NewCard(
-			dn,
 			"",
+			dn,
 			container.NewHBox(
 				widget.NewButton("Port Forward", func() {
 
@@ -201,11 +174,5 @@ func loadDeployments(client *k8s.Client, ns string) {
 		deploymentCards = append(deploymentCards, deploymentCard)
 	}
 
-	deployments := container.NewVScroll(
-		container.NewVBox(deploymentCards...),
-	)
-	deployments.SetMinSize(fyne.NewSize(640, 460))
-
-	content.Objects = []fyne.CanvasObject{deployments}
-	content.Refresh()
+	return deploymentCards
 }

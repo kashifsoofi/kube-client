@@ -117,6 +117,10 @@ func loadPods(a fyne.App, client *k8s.Client, ns string) []fyne.CanvasObject {
 					lw := NewLogWindow(a, client, p)
 					lw.Show()
 				}),
+				widget.NewButton("Port Forward", func() {
+					lw := NewPodPortForwardWindow(a, client, ns, p)
+					lw.Show()
+				}),
 				widget.NewButton("Delete", func() {
 
 				}),
@@ -161,9 +165,6 @@ func loadDeployments(client *k8s.Client, ns string) []fyne.CanvasObject {
 			"",
 			dn,
 			container.NewHBox(
-				widget.NewButton("Port Forward", func() {
-
-				}),
 				widget.NewButton("Scale", func() {
 
 				}),

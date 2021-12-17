@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
@@ -31,6 +32,27 @@ func (c *Client) GetPods(ns string) ([]string, error) {
 	}
 
 	return podNames, nil
+}
+
+func (c *Client) GetPodLogStream(ns, podName string) (io.ReadCloser, error) {
+	clientset, err := getClientset(c.configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	count := int64(100)
+	podLogOptions := v1.PodLogOptions{
+		Follow:    true,
+		TailLines: &count,
+	}
+
+	podLogRequest := clientset.CoreV1().Pods(ns).GetLogs(podName, &podLogOptions)
+	stream, err := podLogRequest.Stream(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	return stream, nil
 }
 
 type PortForwardAPodRequest struct {

@@ -114,12 +114,12 @@ func loadPods(a fyne.App, client *k8s.Client, ns string) []fyne.CanvasObject {
 			p,
 			container.NewHBox(
 				widget.NewButton("Logs", func() {
-					lw := NewLogWindow(a, client, p)
+					lw := NewLogWindow(a, client, ns, p)
 					lw.Show()
 				}),
 				widget.NewButton("Port Forward", func() {
-					lw := NewPodPortForwardWindow(a, client, ns, p)
-					lw.Show()
+					ppfw := NewPodPortForwardWindow(a, client, ns, p)
+					ppfw.Show()
 				}),
 				widget.NewButton("Delete", func() {
 

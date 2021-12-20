@@ -23,9 +23,11 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 	)
 	logContainer.SetMinSize(fyne.NewSize(800, 600))
 
+	var wg sync.WaitGroup
+
 	// stopCh control the port forwarding lifecycle. When it gets closed the
 	// port forward will terminate
-	stopCh := make(chan struct{}, 1)
+	var stopCh chan struct{}
 
 	localPortBinding := binding.NewString()
 	localPortBinding.Set("8081")
@@ -40,6 +42,8 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 			localPortEntry,
 			podPortEntry,
 			widget.NewButton("Start", func() {
+				wg.Add(1)
+				stopCh = make(chan struct{}, 1)
 				localPort, _ := localPortBinding.Get()
 				podPort, _ := podPortBinding.Get()
 				go startPodPortForward(
@@ -49,10 +53,13 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 					localPort,
 					podPort,
 					w,
+					wg,
 					stopCh)
 			}),
 			widget.NewButton("Stop", func() {
 				close(stopCh)
+				wg.Done()
+				println("Port forwarding is stopped for " + pod + ".")
 			}),
 		),
 		logContainer,
@@ -63,10 +70,7 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 	return w
 }
 
-func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string, w fyne.Window, stopCh chan struct{}) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
+func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string, w fyne.Window, wg sync.WaitGroup, stopCh chan struct{}) {
 	// readyCh communicate when the port forward is ready to get traffic
 	readyCh := make(chan struct{})
 	// stream is used to tell the port forwarder where to place its output or
@@ -97,7 +101,7 @@ func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string,
 	case <-readyCh:
 		break
 	}
-	println("Port forwarding is ready to get traffic. have fun!")
+	println("Port forwarding is ready for " + pod + ".")
 
 	wg.Wait()
 }

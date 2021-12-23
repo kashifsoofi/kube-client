@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -114,10 +116,14 @@ func loadPods(a fyne.App, client *k8s.Client, ns string) []fyne.CanvasObject {
 			p,
 			container.NewHBox(
 				widget.NewButton("Logs", func() {
+					fmt.Printf("Namespace: %s, Pod: %s\n", ns, p)
+
 					lw := NewLogWindow(a, client, ns, p)
 					lw.Show()
 				}),
 				widget.NewButton("Port Forward", func() {
+					fmt.Printf("Namespace: %s, Pod: %s\n", ns, p)
+
 					ppfw := NewPodPortForwardWindow(a, client, ns, p)
 					ppfw.Show()
 				}),

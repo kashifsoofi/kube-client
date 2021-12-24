@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -13,15 +15,15 @@ import (
 )
 
 func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyne.Window {
-	w := a.NewWindow(pod + " Logs")
+	w := a.NewWindow(pod + " Port Forward")
 
-	logEntry := widget.NewMultiLineEntry()
-	logEntry.Disable()
+	logsLabel := widget.NewLabel("")
 
-	logContainer := container.NewVScroll(
-		logEntry,
+	scrollableContent := container.NewScroll(
+		logsLabel,
 	)
-	logContainer.SetMinSize(fyne.NewSize(800, 600))
+	scrollableContent.SetMinSize(fyne.NewSize(800, 600))
+	scrollableContent.ScrollToBottom()
 
 	var wg sync.WaitGroup
 
@@ -54,15 +56,16 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 					podPort,
 					w,
 					wg,
-					stopCh)
+					stopCh,
+					logsLabel)
 			}),
 			widget.NewButton("Stop", func() {
 				close(stopCh)
 				wg.Done()
-				println("Port forwarding is stopped for " + pod + ".")
+				logsLabel.Text += "Port forwarding is stopped for " + pod + ".\n"
 			}),
 		),
-		logContainer,
+		scrollableContent,
 	)
 
 	w.SetContent(content)
@@ -70,14 +73,21 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 	return w
 }
 
-func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string, w fyne.Window, wg sync.WaitGroup, stopCh chan struct{}) {
+func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string, w fyne.Window, wg sync.WaitGroup, stopCh chan struct{}, logs *widget.Label) {
 	// readyCh communicate when the port forward is ready to get traffic
 	readyCh := make(chan struct{})
 	// stream is used to tell the port forwarder where to place its output or
 	// where to expect input if needed. For the port forwarding we just need
 	// the output eventually
-	out := os.Stdout
-	errOut := os.Stderr
+	outReader, outWriter, err := os.Pipe()
+	if err != nil {
+		return
+	}
+
+	errOutReader, errOutWriter, err := os.Pipe()
+	if err != nil {
+		return
+	}
 
 	go func() {
 		// PortForward the pod specified from its port 9090 to the local port
@@ -87,8 +97,8 @@ func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string,
 			PodName:   pod,
 			LocalPort: localPort,
 			PodPort:   podPort,
-			Out:       out,
-			ErrOut:    errOut,
+			Out:       outWriter,
+			ErrOut:    errOutWriter,
 			StopCh:    stopCh,
 			ReadyCh:   readyCh,
 		})
@@ -101,7 +111,57 @@ func startPodPortForward(client *k8s.Client, ns, pod, localPort, podPort string,
 	case <-readyCh:
 		break
 	}
-	println("Port forwarding is ready for " + pod + ".")
+
+	go func() {
+		for {
+			select {
+			case <-stopCh:
+				fmt.Println("Stopped")
+				return
+
+			default:
+				fmt.Println("Not Stopped yet")
+				output, err := readOutput(outReader)
+				if err == io.EOF {
+					fmt.Println("Output EOF")
+					break
+				}
+				if err != nil {
+					fmt.Printf("Output Error: %v\n", err)
+					return
+				}
+
+				logs.Text += output
+
+				errOutput, err := readOutput(errOutReader)
+				if err == io.EOF {
+					fmt.Println("Error Output EOF")
+					break
+				}
+				if err != nil {
+					fmt.Printf("ErrorOutput Error: %v\n", err)
+					return
+				}
+
+				logs.Text += errOutput
+				logs.Refresh()
+			}
+		}
+	}()
 
 	wg.Wait()
+}
+
+func readOutput(reader *os.File) (string, error) {
+	buf := make([]byte, 1000)
+	numBytes, err := reader.Read(buf)
+	if numBytes == 0 {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	output := string(buf[:numBytes])
+	return output, nil
 }

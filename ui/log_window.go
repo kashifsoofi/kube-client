@@ -2,7 +2,6 @@ package ui
 
 import (
 	"io"
-	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -19,7 +18,6 @@ type LogWindow struct {
 	client *k8s.Client
 	ns     string
 	pn     string
-	wg     sync.WaitGroup
 	stopCh chan struct{}
 }
 
@@ -48,14 +46,12 @@ func NewLogWindow(a fyne.App, client *k8s.Client, ns, pod string) fyne.Window {
 	content := container.NewVBox(
 		container.NewHBox(
 			widget.NewButton("Start", func() {
-				logWindow.wg.Add(1)
 				logWindow.stopCh = make(chan struct{}, 1)
 
 				go logWindow.startLog()
 			}),
 			widget.NewButton("Stop", func() {
 				close(logWindow.stopCh)
-				logWindow.wg.Done()
 			}),
 		),
 		logContainer,

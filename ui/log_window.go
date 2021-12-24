@@ -2,6 +2,7 @@ package ui
 
 import (
 	"io"
+	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -10,57 +11,92 @@ import (
 	"github.com/kashifsoofi/kube-client/k8s"
 )
 
+type LogWindow struct {
+	w         fyne.Window
+	container *container.Scroll
+	logs      *widget.Label
+
+	client *k8s.Client
+	ns     string
+	pn     string
+	wg     sync.WaitGroup
+	stopCh chan struct{}
+}
+
+var logWindow LogWindow
+
 func NewLogWindow(a fyne.App, client *k8s.Client, ns, pod string) fyne.Window {
 	w := a.NewWindow(pod + " Logs")
 
-	logEntry := widget.NewMultiLineEntry()
-	logEntry.Disable()
+	logEntry := widget.NewLabel("")
 
-	logContainer := container.NewVScroll(
+	logContainer := container.NewScroll(
 		logEntry,
 	)
 	logContainer.SetMinSize(fyne.NewSize(800, 600))
+	logContainer.ScrollToBottom()
 
-	var logStream io.ReadCloser
+	logWindow = LogWindow{
+		w:         w,
+		container: logContainer,
+		logs:      logEntry,
+		client:    client,
+		ns:        ns,
+		pn:        pod,
+	}
+
 	content := container.NewVBox(
 		container.NewHBox(
 			widget.NewButton("Start", func() {
-				stream, err := client.GetPodLogStream(ns, pod)
-				if err != nil {
-					dialog.NewError(err, w)
-					return
-				}
-				defer stream.Close()
+				logWindow.wg.Add(1)
+				logWindow.stopCh = make(chan struct{}, 1)
 
-				logStream = stream
-
-				for {
-					buf := make([]byte, 2000)
-					numBytes, err := stream.Read(buf)
-					if numBytes == 0 {
-						continue
-					}
-					if err == io.EOF {
-						break
-					}
-					if err != nil {
-						dialog.NewError(err, w)
-						return
-					}
-
-					message := string(buf[:numBytes])
-					logEntry.Text += message
-					logEntry.Refresh()
-				}
+				go logWindow.startLog()
 			}),
 			widget.NewButton("Stop", func() {
-				logStream.Close()
+				close(logWindow.stopCh)
+				logWindow.wg.Done()
 			}),
 		),
 		logContainer,
 	)
 
-	w.SetContent(content)
-	w.CenterOnScreen()
+	logWindow.w.SetContent(content)
+	logWindow.w.CenterOnScreen()
 	return w
+}
+
+func (lw LogWindow) startLog() {
+	stream, err := lw.client.GetPodLogStream(lw.ns, lw.pn)
+	if err != nil {
+		dialog.NewError(err, lw.w)
+		return
+	}
+	defer stream.Close()
+
+	for {
+		select {
+		case <-lw.stopCh:
+			return
+
+		default:
+			buf := make([]byte, 2000)
+			numBytes, err := stream.Read(buf)
+			if numBytes == 0 {
+				continue
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				dialog.NewError(err, lw.w)
+				return
+			}
+
+			message := string(buf[:numBytes])
+			lw.logs.Text += message
+			lw.logs.Refresh()
+			lw.container.ScrollToBottom()
+		}
+	}
 }

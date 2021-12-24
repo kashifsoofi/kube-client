@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -111,20 +109,17 @@ func loadPods(a fyne.App, client *k8s.Client, ns string) []fyne.CanvasObject {
 
 	podCards := []fyne.CanvasObject{}
 	for _, p := range podNames {
+		podName := p
 		podCard := widget.NewCard(
 			"",
-			p,
+			podName,
 			container.NewHBox(
 				widget.NewButton("Logs", func() {
-					fmt.Printf("Namespace: %s, Pod: %s\n", ns, p)
-
-					lw := NewLogWindow(a, client, ns, p)
+					lw := NewLogWindow(a, client, ns, podName)
 					lw.Show()
 				}),
 				widget.NewButton("Port Forward", func() {
-					fmt.Printf("Namespace: %s, Pod: %s\n", ns, p)
-
-					ppfw := NewPodPortForwardWindow(a, client, ns, p)
+					ppfw := NewPodPortForwardWindow(a, client, ns, podName)
 					ppfw.Show()
 				}),
 				widget.NewButton("Delete", func() {
@@ -145,9 +140,10 @@ func loadServices(client *k8s.Client, ns string) []fyne.CanvasObject {
 
 	serviceCards := []fyne.CanvasObject{}
 	for _, s := range serviceNames {
+		sn := s
 		serviceCard := widget.NewCard(
 			"",
-			s,
+			sn,
 			container.NewHBox(
 				widget.NewButton("Delete", func() {
 
@@ -167,9 +163,10 @@ func loadDeployments(client *k8s.Client, ns string) []fyne.CanvasObject {
 
 	deploymentCards := []fyne.CanvasObject{}
 	for _, dn := range deploymentNames {
+		deploymentName := dn
 		deploymentCard := widget.NewCard(
 			"",
-			dn,
+			deploymentName,
 			container.NewHBox(
 				widget.NewButton("Scale", func() {
 

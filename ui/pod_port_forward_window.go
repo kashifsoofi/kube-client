@@ -56,18 +56,46 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 		wg:     sync.WaitGroup{},
 	}
 
+	in := make(chan string)
+	go pfw.refreshLogs(in)
+
 	content := container.NewVBox(
 		container.NewHBox(
 			localPortEntry,
 			podPortEntry,
 			widget.NewButton("Start", func() {
+				// stream is used to tell the port forwarder where to place its output or
+				// where to expect input if needed. For the port forwarding we just need
+				// the output eventually
+				outReader, outWriter, err := os.Pipe()
+				if err != nil {
+					return
+				}
+
+				errOutReader, errOutWriter, err := os.Pipe()
+				if err != nil {
+					return
+				}
+
 				pfw.wg.Add(1)
+				// readyCh communicate when the port forward is ready to get traffic
+				readyCh := make(chan struct{})
 				pfw.stopCh = make(chan struct{}, 1)
 				localPort, _ := localPortBinding.Get()
 				podPort, _ := podPortBinding.Get()
 				go pfw.startPodPortForward(
 					localPort,
-					podPort)
+					podPort,
+					outWriter,
+					errOutWriter,
+					readyCh)
+
+				// read ready channel
+				<-readyCh
+
+				go pfw.routeOutput(outReader, errOutReader, in)
+
+				// pfw.wg.Wait()
 			}),
 			widget.NewButton("Stop", func() {
 				if pfw.stopCh == nil {
@@ -87,79 +115,64 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 	return w
 }
 
-func (pfw PodPortForwardWindow) startPodPortForward(localPort, podPort string) {
-	// readyCh communicate when the port forward is ready to get traffic
-	readyCh := make(chan struct{})
-	// stream is used to tell the port forwarder where to place its output or
-	// where to expect input if needed. For the port forwarding we just need
-	// the output eventually
-	outReader, outWriter, err := os.Pipe()
+func (pfw PodPortForwardWindow) startPodPortForward(localPort, podPort string, outWriter, errOutWriter *os.File, readyCh chan struct{}) {
+
+	err := pfw.client.PortForwardAPod(k8s.PortForwardAPodRequest{
+		Namespace: pfw.ns,
+		PodName:   pfw.pn,
+		LocalPort: localPort,
+		PodPort:   podPort,
+		Out:       outWriter,
+		ErrOut:    errOutWriter,
+		StopCh:    pfw.stopCh,
+		ReadyCh:   readyCh,
+	})
 	if err != nil {
-		return
+		dialog.NewError(err, pfw.w)
 	}
+}
 
-	errOutReader, errOutWriter, err := os.Pipe()
-	if err != nil {
-		return
-	}
+func (pfw PodPortForwardWindow) routeOutput(outReader, errOutReader *os.File, out chan<- string) {
+	for {
+		select {
+		case <-pfw.stopCh:
+			fmt.Println("Stopped")
+			return
 
-	go func() {
-		// PortForward the pod specified from its port 9090 to the local port
-		// 8080
-		err := pfw.client.PortForwardAPod(k8s.PortForwardAPodRequest{
-			Namespace: pfw.ns,
-			PodName:   pfw.pn,
-			LocalPort: localPort,
-			PodPort:   podPort,
-			Out:       outWriter,
-			ErrOut:    errOutWriter,
-			StopCh:    pfw.stopCh,
-			ReadyCh:   readyCh,
-		})
-		if err != nil {
-			dialog.NewError(err, pfw.w)
-		}
-	}()
-
-	// read ready channel
-	<-readyCh
-
-	go func() {
-		for {
-			select {
-			case <-pfw.stopCh:
-				fmt.Println("Stopped")
-				return
-
-			default:
-				output, err := readOutput(outReader)
-				if err == io.EOF {
-					fmt.Println("Output EOF")
-					break
-				}
-				if err != nil {
-					fmt.Printf("Output Error: %v\n", err)
-					return
-				}
-
-				pfw.logs.Text += output
-
-				errOutput, err := readOutput(errOutReader)
-				if err == io.EOF {
-					fmt.Println("Error Output EOF")
-					break
-				}
-				if err != nil {
-					fmt.Printf("ErrorOutput Error: %v\n", err)
-					return
-				}
-
-				pfw.logs.Text += errOutput
+		default:
+			output, err := readOutput(outReader)
+			if err == io.EOF {
+				fmt.Println("Output EOF")
+				break
 			}
-		}
-	}()
+			if err != nil {
+				fmt.Printf("Output Error: %v\n", err)
+				return
+			}
 
-	pfw.wg.Wait()
+			out <- output
+
+			errOutput, err := readOutput(errOutReader)
+			if err == io.EOF {
+				fmt.Println("Error Output EOF")
+				break
+			}
+			if err != nil {
+				fmt.Printf("ErrorOutput Error: %v\n", err)
+				return
+			}
+
+			out <- errOutput
+		}
+	}
+}
+
+func (pfw PodPortForwardWindow) refreshLogs(in <-chan string) {
+	for {
+		text := <-in
+		pfw.logs.Text += text
+		pfw.logs.Refresh()
+	}
 }
 
 func readOutput(reader *os.File) (string, error) {

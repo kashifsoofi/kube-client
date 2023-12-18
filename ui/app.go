@@ -12,8 +12,11 @@ type App struct {
 	client *k8s.Client
 }
 
-func NewApp() *App {
-	client, _ := k8s.NewClient()
+func NewApp() (*App, error) {
+	client, err := k8s.NewClient()
+	if err != nil {
+		return nil, err
+	}
 
 	app := App{
 		app:    app.NewWithID("Kubernetes Client"),
@@ -21,7 +24,7 @@ func NewApp() *App {
 	}
 	app.window = NewMainWindow(app.app, app.client)
 
-	return &app
+	return &app, nil
 }
 
 func (a *App) Run() {

@@ -22,7 +22,7 @@ type PodPortForwardWindow struct {
 	ns     string
 	pn     string
 
-	wg sync.WaitGroup
+	wg *sync.WaitGroup
 	// stopCh control the port forwarding lifecycle. When it gets closed the
 	// port forward will terminate
 	stopCh chan struct{}
@@ -53,7 +53,7 @@ func NewPodPortForwardWindow(a fyne.App, client *k8s.Client, ns, pod string) fyn
 		client: client,
 		ns:     ns,
 		pn:     pod,
-		wg:     sync.WaitGroup{},
+		wg:     &sync.WaitGroup{},
 	}
 
 	in := make(chan string)

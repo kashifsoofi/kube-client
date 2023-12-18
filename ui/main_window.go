@@ -12,6 +12,11 @@ var content *fyne.Container
 func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 	w := a.NewWindow("Kubernetes Client")
 
+	widgetAddContext := widget.NewButton("Add Context", func() {
+		w := NewAddContextWindow(a)
+		w.Show()
+	})
+
 	widgetNamespace := &widget.Select{}
 
 	contexts, current := getContexts(client)
@@ -33,6 +38,7 @@ func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 
 	mainContent := container.NewBorder(
 		container.NewHBox(
+			widgetAddContext,
 			widget.NewLabel("Context"),
 			widgetContext,
 			widget.NewLabel("Namespace"),
@@ -52,6 +58,10 @@ func NewMainWindow(a fyne.App, client *k8s.Client) fyne.Window {
 }
 
 func getContexts(client *k8s.Client) ([]string, string) {
+	if client == nil {
+		return []string{}, ""
+	}
+
 	contexts := client.GetContexts()
 	current := client.GetCurrentContext()
 
